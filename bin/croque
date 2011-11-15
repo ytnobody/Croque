@@ -1,0 +1,86 @@
+#!/usr/bin/env perl
+use strict;
+use Croque;
+use Getopt::Long;
+
+my $stdout;
+my $stderr;
+my $command;
+my $when_down;
+my $boot_at;
+my $down_at;
+my $help;
+
+my $opts = GetOptions(
+    "command=s"   => \$command,
+    "boot_at=s"   => \$boot_at,
+    "down_at=s"   => \$down_at,
+    "stdout=s"    => \$stdout,
+    "stderr=s"    => \$stderr,
+    "when_down=s" => \$when_down,
+    "help"        => \$help,
+);
+
+help() if $help || !$command || !$boot_at || !$down_at;
+
+my $c = croque {
+    boot {
+        my $proc = shift;
+        $proc->redirect_output( $stdout, $stderr );
+        return $command;
+    } at { qr/$boot_at/ };
+    down {
+        my $proc = shift;
+        if ( $when_down ) {
+            my $pid = $proc->pid;
+            $when_down =~ s/__PID__/$pid/g;
+            system( "$when_down" ) if $when_down;
+        }
+    } at { qr/$down_at/ };
+};
+
+$c->work;
+
+sub help {
+    print $_ for <DATA>;
+    exit;
+}
+
+__DATA__
+
+*=-. croque v.0.01 .-=*
+
+Usage:
+
+croque --command=batch_command \
+       --boot_at=boot_time_regexp \
+       --down_at=down_time_regexp \
+       --stdout=stdout_file \
+       --stderr=stderr_file \
+       --when_down=down_time_command \
+       --help
+
+required params
+  command: your batch command
+  boot_at: regexp for matching to time for kicking a batch
+  down_at: regexp for matching to time for killing a batch-process
+
+optional params
+  stdout: specifier for stdout redirection
+  stderr: specifier for stderr redirection
+  when_down: command that will be kicked when killed a batch-process ('__PID__' will replace to pid of batch-process)
+  help: show this help ;)
+
+ex.)
+  * Kicking '/home/devel/MyScript.sh' at 10:20 every day, And killing this process at 11:00 every day.
+    croque --command=/home/devel/MyScript.sh --boot_at=10:20:00 --down_at=11:00:00
+
+  * Additionally, redirect stdout to '/var/log/myscript.log' and, redirect stderr to '/var/log/myscript.err'.
+    croque --command=/home/devel/MyScript.sh --boot_at=10:20:00 --down_at=11:00:00 \
+           --stdout=/var/log/myscript.log --stderr=/var/log/myscript.err
+
+  * Additionally, send mail when killing a batch-process.
+    croque --command=/home/devel/MyScript.sh --boot_at=10:20:00 --down_at=11:00:00 \
+           --stdout=/var/log/myscript.log --stderr=/var/log/myscript.err \
+           --when_down='echo "process-id __PID__ was finished" | mail -s "FINISHED" admin@example.com'
+
