@@ -1,0 +1,131 @@
+# NAME
+
+Croque - Batch Kicker
+
+# SYNOPSIS
+
+    use Croque;
+    
+    my $c = croque {
+        boot { 
+            my $process = shift;
+            $process->redirect_output( '/tmp/stdout.log', '/tmp/stderr.log' );
+            return '/path/to/batch.sh' 
+        } at { qr/ (10|16):00:00$/ };
+    
+        down {
+            my $process = shift;
+            warn "process-id=". $process->pid . " will be killed.";
+        } at { qr/ (10|16):30:00$/ };
+    };
+    
+    $c->work; # loop
+
+# DESCRIPTION
+
+Croque is a Batch Kicker. It has following features.
+
+Kicking a batch as scheduled.
+Killing a batch-process as scheduled.
+
+# WHY NOT CRON?
+
+CRON can kick a batch as scheduled. And, it can kill batch-process as
+scheduled.
+
+But, killing a batch-process with specified process-id is bit difficult
+(If batch not create pid-file).
+
+# COMMAND-LINE INTERFACE
+
+# EXPORTED METHODS
+
+## croque
+
+Setup Croque object.
+
+    my $croque_object = croque {
+        ### croque setup code here ###
+    };
+    # or
+    $croque_object = croque { ... } { oneshot => 1 };
+
+1st argument is coderef that contains setting-up logic for kicking a
+batch. See SYNOPSIS.
+
+2nd optional argument is hashref for specify some options. As options,
+following parameter may be specified.
+
+oneshot ( bool )
+      Break loop of work() when killing a batch-process if this parameter
+      is defined.
+
+      See work method.
+
+## at
+
+Schedule specifier.
+
+    my $coderef = at { qr/ 10:20:00$/ };
+    # or
+    $coderef = at { qr/^00$/ }, '%S';
+
+1st argument is coderef that returns regexpref for matching current
+localtime.
+
+2nd optional argument is string. This is a format of
+Time::Piece::strptime().
+
+and, "at" returns coderef for matching current localtime.
+
+    while( 1 ) {
+        last if $coderef->();
+        sleep 1;
+    }
+    say "matched!";
+
+## boot
+
+Specifier for kicking a batch.
+
+    boot {
+        my $proc = shift;
+        $proc->redirect_output( '/path/to/stdout', '/path/to/stderr' );
+        return './my-batch.sh';
+    } at { qr/:00$/ };
+
+1st argument is coderef that returns command for kicking a batch as
+string/array. $proc is a object of Proc::Simple.
+
+2nd argument is schedule specifier. See "at" method.
+
+## down
+
+Specifier for killing a batch-process.
+
+    down {} at { qr/:30$/ };
+    # or
+    down {
+        my $proc = shift;
+        warn sprintf( "pid %d was killed.", $proc->pid );
+    } at { qr/:30$/ };
+
+1st argument is coderef that is kicked *BEFORE* killing a batch-process.
+
+# OBJECT METHOD
+
+## work
+
+Entering loop for waiting for kicking batch.
+
+# AUTHOR
+
+ytnobody <ytnobody at gmail dot com>
+
+# SEE ALSO
+
+# LICENSE
+
+This library is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
